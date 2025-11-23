@@ -70,6 +70,7 @@
   "dependencies": {
     "debug": "^4.1.1",
     "merge-deep": "^3.0.2",
+    "playwright-core": "^1.56.1",
     "puppeteer-extra-plugin": "^3.2.3"
   },
   "peerDependencies": {

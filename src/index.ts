@@ -7,11 +7,16 @@ import * as types from './types'
 import { RecaptchaContentScript } from './content'
 import { HcaptchaContentScript } from './content-hcaptcha'
 import * as TwoCaptcha from './provider/2captcha'
+import * as CaptchaForwarder from './provider/captcha-forwarder'
 
 export const BuiltinSolutionProviders: types.SolutionProvider[] = [
   {
     id: TwoCaptcha.PROVIDER_ID,
     fn: TwoCaptcha.getSolutions
+  },
+  {
+    id: CaptchaForwarder.PROVIDER_ID,
+    fn: CaptchaForwarder.getSolutions
   }
 ]
 
