@@ -4,10 +4,34 @@
   "description": "Fork of puppeteer-extra-plugin-recaptcha, captcha-forwarder provider added",
   "author": "KR1470R",
   "license": "ISC",
-  "main": "index.js",
+  "main": "dist/index.cjs.js",
+  "module": "dist/index.esm.js",
+  "typings": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "scripts": {
+    "clean": "rimraf dist/*",
+    "tscheck": "tsc --pretty --noEmit",
+    "prebuild": "run-s clean",
+    "build": "run-s build:tsc build:rollup ambient-dts",
+    "build:tsc": "tsc --project tsconfig.json --module commonjs",
+    "build:rollup": "rollup -c rollup.config.cjs",
+    "docs": "node -e 0",
+    "predocs2": "rimraf docs/*",
+    "docs2": "typedoc --module commonjs --readme none --target ES6 --theme markdown --excludeNotExported --excludeExternals --excludePrivate --out docs --mode file src/index.ts",
+    "test": "ava -v --config ava.config-ts.js",
+    "pretest-ci": "run-s build",
+    "test-ci": "ava --fail-fast --concurrency 2 -v",
+    "ambient-dts": "run-s ambient-dts-copy ambient-dts-fix-path",
+    "ambient-dts-copy": "copyfiles -u 1 \"src/**/*.d.ts\" dist",
+    "ambient-dts-fix-path": "replace-in-files --string='/// <reference path=\"../src/' --replacement='/// <reference path=\"../dist/' 'dist/**/*.d.ts'"
+  },
   "devDependencies": {
+    "@rollup/plugin-json": "^6.1.0",
     "@types/debug": "^4.1.5",
-    "@types/node": "14.17.6",
+    "@types/node": "^20.19.25",
     "@types/puppeteer": "*",
     "ava": "2.4.0",
     "copyfiles": "^2.1.1",
@@ -24,7 +48,7 @@
     "tslint": "^5.20.1",
     "tslint-config-prettier": "^1.18.0",
     "tslint-config-standard": "^9.0.0",
-    "typescript": "4.4.3"
+    "typescript": "^5.9.3"
   },
   "dependencies": {
     "debug": "^4.1.1",
@@ -43,9 +67,6 @@
     "playwright-extra": {
       "optional": true
     }
-  },
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",

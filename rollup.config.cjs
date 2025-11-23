@@ -1,6 +1,7 @@
-import resolve from 'rollup-plugin-node-resolve'
-import sourceMaps from 'rollup-plugin-sourcemaps'
-import typescript from 'rollup-plugin-typescript2'
+const resolve = require('rollup-plugin-node-resolve')
+const sourceMaps = require('rollup-plugin-sourcemaps')
+const typescript = require('rollup-plugin-typescript2')
+const json = require('@rollup/plugin-json')
 
 const pkg = require('./package.json')
 
@@ -18,7 +19,7 @@ const defaultExportOutro = `
   Object.entries(exports).forEach(([key, value]) => { module.exports[key] = value })
 `
 
-export default {
+module.exports = {
   input: `src/${entryFile}.ts`,
   output: [
     {
@@ -37,7 +38,6 @@ export default {
       banner
     }
   ],
-  // Indicate here external modules you don't wanna include in your bundle (i.e.: 'lodash')
   external: [
     ...Object.keys(pkg.dependencies || {}),
     ...Object.keys(pkg.peerDependencies || {})
@@ -46,15 +46,9 @@ export default {
     include: 'src/**'
   },
   plugins: [
-    // Compile TypeScript files
+    json(), // <-- REQUIRED FIX for JSON import
     typescript({ useTsconfigDeclarationDir: true }),
-    // Allow bundling cjs modules (unlike webpack, rollup doesn't understand cjs)
-    // commonjs(),
-    // Allow node_modules resolution, so you can use 'external' to control
-    // which external modules to include in the bundle
-    // https://github.com/rollup/rollup-plugin-node-resolve#usage
     resolve(),
-    // Resolve source maps to the original source
     sourceMaps()
   ]
 }
