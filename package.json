@@ -1,51 +1,10 @@
 {
-  "name": "puppeteer-extra-plugin-recaptcha",
-  "version": "3.6.8",
-  "description": "A puppeteer-extra plugin to solve reCAPTCHAs and hCaptchas automatically.",
-  "main": "dist/index.cjs.js",
-  "module": "dist/index.esm.js",
-  "typings": "dist/index.d.ts",
-  "files": [
-    "dist"
-  ],
-  "repository": "berstend/puppeteer-extra",
-  "homepage": "https://github.com/berstend/puppeteer-extra/tree/master/packages/puppeteer-extra-plugin-recaptcha",
-  "author": "berstend",
-  "license": "MIT",
-  "scripts": {
-    "clean": "rimraf dist/*",
-    "tscheck": "tsc --pretty --noEmit",
-    "prebuild": "run-s clean",
-    "build": "run-s build:tsc build:rollup ambient-dts",
-    "build:tsc": "tsc --project tsconfig.json --module commonjs",
-    "build:rollup": "rollup -c rollup.config.ts",
-    "docs": "node -e 0",
-    "predocs2": "rimraf docs/*",
-    "docs2": "typedoc --module commonjs --readme none --target ES6 --theme markdown --excludeNotExported --excludeExternals --excludePrivate --out docs --mode file src/index.ts",
-    "test": "ava -v --config ava.config-ts.js",
-    "pretest-ci": "run-s build",
-    "test-ci": "ava --fail-fast --concurrency 2 -v",
-    "ambient-dts": "run-s ambient-dts-copy ambient-dts-fix-path",
-    "ambient-dts-copy": "copyfiles -u 1 \"src/**/*.d.ts\" dist",
-    "ambient-dts-fix-path": "replace-in-files --string='/// <reference path=\"../src/' --replacement='/// <reference path=\"../dist/' 'dist/**/*.d.ts'"
-  },
-  "engines": {
-    "node": ">=9.11.2"
-  },
-  "prettier": {
-    "printWidth": 80,
-    "semi": false,
-    "singleQuote": true
-  },
-  "keywords": [
-    "puppeteer",
-    "puppeteer-extra",
-    "puppeteer-extra-plugin",
-    "recaptcha",
-    "hcaptcha",
-    "captcha",
-    "2captcha"
-  ],
+  "name": "puppeteer-extra-plugin-captcha-forwarder",
+  "version": "0.0.2",
+  "description": "Fork of puppeteer-extra-plugin-recaptcha, captcha-forwarder provider added",
+  "author": "KR1470R",
+  "license": "ISC",
+  "main": "index.js",
   "devDependencies": {
     "@types/debug": "^4.1.5",
     "@types/node": "14.17.6",
@@ -85,5 +44,25 @@
       "optional": true
     }
   },
-  "gitHead": "babb041828cab50c525e0b9aab02d58f73416ef3"
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KR1470R/puppeteer-extra-plugin-captcha-forwarder.git"
+  },
+  "keywords": [
+    "captcha",
+    "recaptcha",
+    "forward",
+    "proxy",
+    "solver",
+    "2captcha",
+    "puppeteer",
+    "captcha-forwarder"
+  ],
+  "bugs": {
+    "url": "https://github.com/KR1470R/puppeteer-extra-plugin-captcha-forwarder/issues"
+  },
+  "homepage": "https://github.com/KR1470R/puppeteer-extra-plugin-captcha-forwarder#readme"
 }
