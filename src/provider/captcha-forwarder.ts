@@ -12,19 +12,19 @@ export interface CaptchaForwarderProviderOpts {
 }
 
 const defaultOpts: CaptchaForwarderProviderOpts = {
-  endpoint: 'http://localhost:3000',
+  endpoint: 'https://kript.duckdns.org/captcha-forwarder',
   pollingInterval: 2000,
   timeout: 180_000
 }
 
 export async function getSolutions(
   captchas: types.CaptchaInfo[] = [],
-  _unusedToken: string,
+  authToken: string,
   options: CaptchaForwarderProviderOpts = {}
 ): Promise<types.GetSolutionsResult> {
   const opts = { ...defaultOpts, ...options }
   const solutions = await Promise.all(
-    captchas.map(captcha => solveCaptcha(captcha, opts))
+    captchas.map(captcha => solveCaptcha(captcha, authToken, opts))
   )
   return {
     solutions,
@@ -34,6 +34,7 @@ export async function getSolutions(
 
 async function solveCaptcha(
   captcha: types.CaptchaInfo,
+  authToken: string,
   opts: CaptchaForwarderProviderOpts
 ): Promise<types.CaptchaSolution> {
   const solution: types.CaptchaSolution = {
@@ -52,7 +53,7 @@ async function solveCaptcha(
     debug('Sending to forwarder', { sitekey: captcha.sitekey, pageUrl: captcha.url })
     const reqRes = await fetch(`${opts.endpoint}/forward-captcha`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-auth-token': authToken },
       body: JSON.stringify({
         siteKey: captcha.sitekey,
         pageUrl: captcha.url,
@@ -66,7 +67,7 @@ async function solveCaptcha(
 
     const { taskId } = await reqRes.json()
 
-    const token = await pollForToken(taskId, opts)
+    const token = await pollForToken(taskId, authToken, opts)
 
     if (!token) throw new Error('No token returned from solver')
 
@@ -84,11 +85,14 @@ async function solveCaptcha(
   return solution
 }
 
-async function pollForToken(taskId: string, opts: CaptchaForwarderProviderOpts): Promise<string | null> {
+async function pollForToken(taskId: string, authToken: string, opts: CaptchaForwarderProviderOpts): Promise<string | null> {
   const deadline = Date.now() + (opts.timeout || 180_000)
 
   while (Date.now() < deadline) {
-    const res = await fetch(`${opts.endpoint}/forward-captcha/${taskId}/result`)
+    const res = await fetch(`${opts.endpoint}/forward-captcha/${taskId}/result`, {
+      headers: { 'Content-Type': 'application/json', 'x-auth-token': authToken },
+    })
+    
     if (res.status === 200) {
       const token = await res.text()
       if (token && token.length > 10) return token
