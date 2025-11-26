@@ -469,10 +469,11 @@ export class RecaptchaContentScript {
         }
         const $iframe = this._findVisibleIframeNodeById(solved.id)
         this.log(' - $iframe', !!$iframe)
-        if (!$iframe) {
-          solved.error = `Iframe not found for id '${solved.id}'`
-          return solved
-        }
+        // obsolete on recaptchas with no iframes
+        // if (!$iframe) {
+        //   solved.error = `Iframe not found for id '${solved.id}'`
+        //   return solved
+        // }
 
         if (this.hasActiveChallengePopup(solved.id)) {
           // Hide if present challenge window
