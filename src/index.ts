@@ -1,6 +1,6 @@
 import { PuppeteerExtraPlugin } from 'puppeteer-extra-plugin'
 
-import { Browser, Frame, Page } from 'puppeteer'
+import { Browser, Frame, Page, Protocol } from 'puppeteer'
 
 import * as types from './types'
 
@@ -25,17 +25,18 @@ export const BuiltinSolutionProviders: types.SolutionProvider[] = [
  * @noInheritDoc
  */
 export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
-  private contentScriptDebug: debug.Debugger
+  private contentScriptDebug: debug.Debugger;
+  private browser: Browser;
 
   constructor(opts: Partial<types.PluginOptions>) {
-    super(opts)
-    this.debug('Initialized', this.opts)
+    super(opts);
+    this.debug('Initialized', this.opts);
 
-    this.contentScriptDebug = this.debug.extend('cs')
+    this.contentScriptDebug = this.debug.extend('cs');
   }
 
   get name() {
-    return 'recaptcha'
+    return 'recaptcha';
   }
 
   get defaults(): types.PluginOptions {
@@ -44,12 +45,14 @@ export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
       throwOnError: false,
       solveInViewportOnly: false,
       solveScoreBased: false,
-      solveInactiveChallenges: false
-    }
+      solveInactiveChallenges: false,
+      retriesLimit: 0,
+      captchaElementWaitTimeout: 30_000,
+    };
   }
 
   get opts(): types.PluginOptions {
-    return super.opts as any
+    return super.opts as types.PluginOptions;
   }
 
   get contentScriptOpts(): types.ContentScriptOpts {
@@ -81,7 +84,7 @@ export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
     // vars (e.g. esbuild). In such cases, `unexpected token '{'` errors are thrown
     // once the script is executed. Let's bring class name back to script in such
     // cases!
-    scriptSource = scriptSource.replace(/class \{/, `class ${scriptName} {`)
+    scriptSource = scriptSource.replace(/class \{|class\{/, `class ${scriptName} {`)
     return `(async() => {
       const DATA = ${JSON.stringify(data || null)}
       const OPTS = ${JSON.stringify(this.contentScriptOpts)}
@@ -130,13 +133,23 @@ export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
     }
   }
 
-  async findRecaptchas(page: Page | Frame) {
+  async findRecaptchas(page: Page | Frame, captchaElementWaitTimeout?: number) {
     this.debug('findRecaptchas')
+
+    captchaElementWaitTimeout = captchaElementWaitTimeout ?? this.opts.captchaElementWaitTimeout;
     // As this might be called very early while recaptcha is still loading
     // we add some extra waiting logic for developer convenience.
-    const hasRecaptchaScriptTag = await page.$(
-      `script[src*="/recaptcha/api.js"], script[src*="/recaptcha/enterprise.js"]`
-    )
+    let hasRecaptchaScriptTag = undefined;
+    try {
+      hasRecaptchaScriptTag = await page.waitForSelector(
+        `script[src*="/recaptcha/api.js"], script[src*="/recaptcha/enterprise.js"]`,
+        {
+          timeout: captchaElementWaitTimeout,
+        }
+      );
+    } catch (err) {
+      hasRecaptchaScriptTag = undefined;
+    }
     this.debug('hasRecaptchaScriptTag', !!hasRecaptchaScriptTag)
     if (hasRecaptchaScriptTag) {
       this.debug('waitForRecaptchaClient - start', new Date())
@@ -147,27 +160,37 @@ export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
           return Object.keys((window.___grecaptcha_cfg || {}).clients || {}).length
         })()
       `,
-          { polling: 200, timeout: 10 * 1000 }
+          { polling: 200, timeout: captchaElementWaitTimeout }
         )
         .catch(this.debug)
       this.debug('waitForRecaptchaClient - end', new Date()) // used as timer
     }
-    const hasHcaptchaScriptTag = await page.$(
-      `script[src*="hcaptcha.com/1/api.js"]`
-    )
-    this.debug('hasHcaptchaScriptTag', !!hasHcaptchaScriptTag)
-    if (hasHcaptchaScriptTag) {
-      this.debug('wait:hasHcaptchaScriptTag - start', new Date())
-      await page.waitForFunction(
-        `
-        (function() {
-          return window.hcaptcha
-        })()
-      `,
-        { polling: 200, timeout: 10 * 1000 }
-      )
-      this.debug('wait:hasHcaptchaScriptTag - end', new Date()) // used as timer
-    }
+
+    // SKIP HCAPTCHA SOLVING
+    // let hasHcaptchaScriptTag = undefined;
+    // try {
+    //   hasHcaptchaScriptTag = await page.waitForSelector(
+    //     `script[src*="hcaptcha.com/1/api.js"]`,
+    //     {
+    //       timeout: captchaElementWaitTimeout,
+    //     }
+    //   );
+    // } catch (err) {
+    //   hasHcaptchaScriptTag = undefined;
+    // }
+    // this.debug('hasHcaptchaScriptTag', !!hasHcaptchaScriptTag)
+    // if (hasHcaptchaScriptTag) {
+    //   this.debug('wait:hasHcaptchaScriptTag - start', new Date())
+    //   await page.waitForFunction(
+    //     `
+    //     (function() {
+    //       return window.hcaptcha
+    //     })()
+    //   `,
+    //     { polling: 200, timeout: captchaElementWaitTimeout }
+    //   )
+    //   this.debug('wait:hasHcaptchaScriptTag - end', new Date()) // used as timer
+    // }
 
     const onDebugBindingCalled = (message: string, data: any) => {
       this.contentScriptDebug(message, data)
@@ -175,16 +198,22 @@ export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
 
     if (this.contentScriptDebug.enabled) {
       if ('exposeFunction' in page) {
-        await page.exposeFunction(this.debugBindingName, onDebugBindingCalled)
+        try {
+          await page.exposeFunction(this.debugBindingName, onDebugBindingCalled)
+        } catch (err) {
+          if (err?.message && !err.message.includes(`window['${this.debugBindingName}'] already exists`)) {
+            throw err;
+          }
+        }
       }
     }
     // Even without a recaptcha script tag we're trying, just in case.
     const resultRecaptcha: types.FindRecaptchasResult = (await page.evaluate(
       this._generateContentScript('recaptcha', 'findRecaptchas')
     )) as any
-    const resultHcaptcha: types.FindRecaptchasResult = (await page.evaluate(
-      this._generateContentScript('hcaptcha', 'findRecaptchas')
-    )) as any
+    // const resultHcaptcha: types.FindRecaptchasResult = (await page.evaluate(
+    //   this._generateContentScript('hcaptcha', 'findRecaptchas')
+    // )) as any
 
     const filterResults = this._filterRecaptchas(resultRecaptcha.captchas)
     this.debug(
@@ -192,9 +221,12 @@ export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
     )
 
     const response: types.FindRecaptchasResult = {
-      captchas: [...filterResults.captchas, ...resultHcaptcha.captchas],
+      captchas: [
+        ...filterResults.captchas, 
+        //...resultHcaptcha.captchas,
+      ],
       filtered: filterResults.filtered,
-      error: resultRecaptcha.error || resultHcaptcha.error
+      error: resultRecaptcha.error //|| resultHcaptcha.error
     }
     this.debug('findRecaptchas', response)
     if (this.opts.throwOnError && response.error) {
@@ -205,7 +237,9 @@ export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
 
   async getRecaptchaSolutions(
     captchas: types.CaptchaInfo[],
-    provider?: types.SolutionProvider
+    provider?: types.SolutionProvider,
+    cookies?: Protocol.Network.Cookie[], 
+    ua?: string
   ) {
     this.debug('getRecaptchaSolutions', { captchaNum: captchas.length })
     provider = provider || this.opts.provider
@@ -227,6 +261,15 @@ export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
         )
       }
       fn = builtinProvider.fn
+    }
+    provider.opts = {
+      ...(provider.opts || {}),
+    }
+    if (cookies) {
+      provider.opts.cookies = cookies;
+    }
+    if (ua) {
+      provider.opts.ua = ua;
     }
     const response = await fn.call(
       this,
@@ -286,50 +329,117 @@ export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
   }
 
   async solveRecaptchas(
-    page: Page | Frame
+    page: Page | Frame,
+    customRetriesLimit?: number,
+    captchaElementWaitTimeout?: number,
   ): Promise<types.SolveRecaptchasResult> {
-    this.debug('solveRecaptchas')
-    const response: types.SolveRecaptchasResult = {
-      captchas: [],
-      filtered: [],
-      solutions: [],
-      solved: [],
-      error: null
-    }
-    try {
-      // If `this.opts.throwOnError` is set any of the
-      // following will throw and abort execution.
-      const {
-        captchas,
-        filtered,
-        error: captchasError
-      } = await this.findRecaptchas(page)
-      response.captchas = captchas
-      response.filtered = filtered
+    return new Promise<types.SolveRecaptchasResult>((resolve, reject) => {
+      this.debug('solveRecaptchas');
+      customRetriesLimit = customRetriesLimit ?? this.opts.retriesLimit;
+      const response: types.SolveRecaptchasResult = {
+        captchas: [],
+        filtered: [],
+        solutions: [],
+        solved: [],
+        error: null,
+      };
+      let canFinish = false;
+      let tries = 0;
+      let pauseInterval = false;
+      let persistentCaptchaSolving = undefined;
 
-      if (captchas.length) {
-        const {
-          solutions,
-          error: solutionsError
-        } = await this.getRecaptchaSolutions(response.captchas)
-        response.solutions = solutions
+      const checkStop = () => {
+        if (canFinish || tries >= customRetriesLimit) {
+          clearInterval(persistentCaptchaSolving);
+          pauseInterval = true;
+          if (this.opts.throwOnError && response.error) {
+            reject(response.error);
+          } else {
+            resolve(response);
+          }
+        }
 
-        const {
-          solved,
-          error: solvedError
-        } = await this.enterRecaptchaSolutions(page, response.solutions)
-        response.solved = solved
-
-        response.error = captchasError || solutionsError || solvedError
+        return pauseInterval;
       }
-    } catch (error) {
-      response.error = error.toString()
-    }
-    this.debug('solveRecaptchas', response)
-    if (this.opts.throwOnError && response.error) {
-      throw new Error(response.error)
-    }
-    return response
+
+      persistentCaptchaSolving = setInterval(async () => {
+        if (checkStop()) return;
+
+        try {
+          pauseInterval = true;
+
+          /**
+           * @todo
+           * наразі є баг, коли воно ніби після першої ітерації відправило серверу запрос, потім коли капча рефрешиться,
+           * то таймаут на вейт селекта не працює, він не чекає просто, і того воно кидає помилки і просирає ретраї
+           * + навіть коли встигає найти капчу, і я вирішую на воркері, то солюшн не підставляється
+           */
+          let previousCaptchasExist = false;
+          let {
+            captchas,
+            filtered,
+            error: captchasError
+          } = await this.findRecaptchas(page, captchaElementWaitTimeout);
+          captchas = captchas.filter(c => {
+            const existentCaptcha = response.captchas.find(ec => ec.id === c.id);
+            const isNotExist = typeof existentCaptcha === 'undefined';
+            // if (!previousCaptchasExist) {
+              previousCaptchasExist = !isNotExist;
+            // }
+            return isNotExist;
+          });
+          filtered = filtered.filter(fc => {
+            const existentFilteredCaptcha = response.filtered.find(efc => efc.id === fc.id);
+            return typeof existentFilteredCaptcha === 'undefined';
+          });
+          if (captchas.length === 0) {
+            if (previousCaptchasExist) {
+              pauseInterval = false;
+              return;
+            } else {
+              throw new Error('no captcha element found on this page');
+            }
+          } else {
+            if (!previousCaptchasExist) {
+              response.captchas = captchas;
+            } else {
+              response.captchas = [...response.captchas, ...captchas];
+            }
+            tries = 0;
+          }
+
+          pauseInterval = false;
+          
+          response.filtered = [...response.filtered, ...filtered];
+
+          const cookies = await(page as Page).cookies();
+          const ua = await this.browser.userAgent();
+          const {
+            solutions,
+            error: solutionsError,
+          } = await this.getRecaptchaSolutions(response.captchas, undefined, cookies, ua);
+          response.solutions = solutions;
+
+          const {
+            solved,
+            error: solvedError,
+          } = await this.enterRecaptchaSolutions(page, response.solutions);
+          response.solved = solved;
+
+          if (solved && solved.length) {
+            canFinish = true;
+          } else {
+            response.error = captchasError || solutionsError || solvedError;
+          }
+        } catch (error) {
+          response.error = error.toString()
+          tries++;
+        } finally {
+          this.debug('solveRecaptchas', response, 'after try', tries + 1);
+          pauseInterval = false;
+        }
+      }, 2_500);
+    });
   }
 
   private _addCustomMethods(prop: Page | Frame) {
@@ -341,7 +451,7 @@ export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
     prop.enterRecaptchaSolutions = async (solutions: types.CaptchaSolution[]) =>
       this.enterRecaptchaSolutions(prop, solutions)
     // Add convenience methods that wraps all others
-    prop.solveRecaptchas = async () => this.solveRecaptchas(prop)
+    prop.solveRecaptchas = async (customRetriesLimit?: number, captchaElementWaitTimeout?: number) => this.solveRecaptchas(prop, customRetriesLimit, captchaElementWaitTimeout)
   }
 
   async onPageCreated(page: Page) {
@@ -361,6 +471,7 @@ export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
 
   /** Add additions to already existing pages and frames */
   async onBrowser(browser: Browser) {
+    this.browser = browser;
     const pages = await browser.pages()
     for (const page of pages) {
       this._addCustomMethods(page)

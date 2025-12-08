@@ -134,6 +134,15 @@ export interface PluginOptions {
   solveInactiveChallenges: boolean
 
   provider?: SolutionProvider
+
+  /** 
+   * how many times we send request captcha solution from a provider 
+   * if during waiting for solution, page performed mutations(refresh, captcha refreshed, etc) 
+   * and if such mutation caused, the time for capthca solving elapsing by this formula: retries * timeout
+   * */
+  retriesLimit?: number
+
+  captchaElementWaitTimeout?: number
 }
 
 export interface ContentScriptOpts {
