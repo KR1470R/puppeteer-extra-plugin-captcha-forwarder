@@ -39,7 +39,7 @@ async function solveCaptcha(
   captcha: types.CaptchaInfo,
   authToken: string,
   opts: CaptchaForwarderProviderOpts,
-  onTaskUrl?: (taskUrl: string) => Promise<any>,
+  onTaskCreated?: (taskId: string, taskUrl: string) => Promise<any>,
 ): Promise<types.CaptchaSolution> {
   const solution: types.CaptchaSolution = {
     _vendor: captcha._vendor,
@@ -73,8 +73,8 @@ async function solveCaptcha(
 
     const { taskId, taskUrl } = await reqRes.json();
     
-    if (onTaskUrl) {
-      await onTaskUrl(taskUrl);
+    if (onTaskCreated) {
+      await onTaskCreated(taskUrl);
     }
 
     const token = await pollForToken(taskId, authToken, opts);

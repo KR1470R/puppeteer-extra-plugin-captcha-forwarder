@@ -240,7 +240,7 @@ export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
     provider?: types.SolutionProvider,
     cookies?: Protocol.Network.Cookie[], 
     ua?: string,
-    onTaskUrl?: (taskUrl: string) => Promise<any>,
+    onTaskCreated?: (taskId: string, taskUrl: string) => Promise<any>,
   ) {
     this.debug('getRecaptchaSolutions', { captchaNum: captchas.length })
     provider = provider || this.opts.provider
@@ -277,7 +277,7 @@ export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
       captchas,
       provider.token,
       provider.opts || {},
-      onTaskUrl,
+      onTaskCreated,
     )
     response.error =
       response.error ||
@@ -334,7 +334,7 @@ export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
     page: Page | Frame,
     customRetriesLimit?: number,
     captchaElementWaitTimeout?: number,
-    onTaskUrl?: (taskUrl: string) => Promise<any>,
+    onTaskCreated?: (taskId: string, taskUrl: string) => Promise<any>,
   ): Promise<types.SolveRecaptchasResult> {
     return new Promise<types.SolveRecaptchasResult>((resolve, reject) => {
       this.debug('solveRecaptchas');
@@ -417,7 +417,7 @@ export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
           const {
             solutions,
             error: solutionsError,
-          } = await this.getRecaptchaSolutions(response.captchas, undefined, cookies, ua, onTaskUrl);
+          } = await this.getRecaptchaSolutions(response.captchas, undefined, cookies, ua, onTaskCreated);
           response.solutions = solutions;
 
           const {
