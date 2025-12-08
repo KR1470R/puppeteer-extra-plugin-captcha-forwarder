@@ -74,7 +74,7 @@ async function solveCaptcha(
     const { taskId, taskUrl } = await reqRes.json();
     
     if (onTaskCreated) {
-      await onTaskCreated(taskUrl);
+      await onTaskCreated(taskId, taskUrl);
     }
 
     const token = await pollForToken(taskId, authToken, opts);
