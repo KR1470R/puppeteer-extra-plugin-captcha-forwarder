@@ -1,6 +1,6 @@
 {
   "name": "puppeteer-extra-plugin-captcha-forwarder",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Fork of puppeteer-extra-plugin-recaptcha, captcha-forwarder provider added",
   "author": "KR1470R",
   "license": "ISC",

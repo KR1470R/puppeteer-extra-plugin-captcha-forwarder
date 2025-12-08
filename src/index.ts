@@ -239,7 +239,8 @@ export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
     captchas: types.CaptchaInfo[],
     provider?: types.SolutionProvider,
     cookies?: Protocol.Network.Cookie[], 
-    ua?: string
+    ua?: string,
+    onTaskUrl?: (taskUrl: string) => Promise<any>,
   ) {
     this.debug('getRecaptchaSolutions', { captchaNum: captchas.length })
     provider = provider || this.opts.provider
@@ -275,7 +276,8 @@ export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
       this,
       captchas,
       provider.token,
-      provider.opts || {}
+      provider.opts || {},
+      onTaskUrl,
     )
     response.error =
       response.error ||
@@ -332,6 +334,7 @@ export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
     page: Page | Frame,
     customRetriesLimit?: number,
     captchaElementWaitTimeout?: number,
+    onTaskUrl?: (taskUrl: string) => Promise<any>,
   ): Promise<types.SolveRecaptchasResult> {
     return new Promise<types.SolveRecaptchasResult>((resolve, reject) => {
       this.debug('solveRecaptchas');
@@ -348,8 +351,11 @@ export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
       let pauseInterval = false;
       let persistentCaptchaSolving = undefined;
 
+      const isAllSolved = () => {
+        return Array.isArray(response?.solved) && response.solved.length > 0 && response.solved.every(s => s.isSolved);
+      }
       const checkStop = () => {
-        if (canFinish || tries >= customRetriesLimit) {
+        if (canFinish || tries >= customRetriesLimit || isAllSolved()) {
           clearInterval(persistentCaptchaSolving);
           pauseInterval = true;
           if (this.opts.throwOnError && response.error) {
@@ -368,12 +374,6 @@ export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
         try {
           pauseInterval = true;
 
-          /**
-           * @todo
-           * наразі є баг, коли воно ніби після першої ітерації відправило серверу запрос, потім коли капча рефрешиться,
-           * то таймаут на вейт селекта не працює, він не чекає просто, і того воно кидає помилки і просирає ретраї
-           * + навіть коли встигає найти капчу, і я вирішую на воркері, то солюшн не підставляється
-           */
           let previousCaptchasExist = false;
           let {
             captchas,
@@ -417,7 +417,7 @@ export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
           const {
             solutions,
             error: solutionsError,
-          } = await this.getRecaptchaSolutions(response.captchas, undefined, cookies, ua);
+          } = await this.getRecaptchaSolutions(response.captchas, undefined, cookies, ua, onTaskUrl);
           response.solutions = solutions;
 
           const {

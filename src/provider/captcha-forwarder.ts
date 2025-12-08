@@ -38,7 +38,8 @@ export async function getSolutions(
 async function solveCaptcha(
   captcha: types.CaptchaInfo,
   authToken: string,
-  opts: CaptchaForwarderProviderOpts
+  opts: CaptchaForwarderProviderOpts,
+  onTaskUrl?: (taskUrl: string) => Promise<any>,
 ): Promise<types.CaptchaSolution> {
   const solution: types.CaptchaSolution = {
     _vendor: captcha._vendor,
@@ -70,7 +71,11 @@ async function solveCaptcha(
       throw new Error(`forward-captcha POST failed: ${reqRes.status}`);
     }
 
-    const { taskId } = await reqRes.json();
+    const { taskId, taskUrl } = await reqRes.json();
+    
+    if (onTaskUrl) {
+      await onTaskUrl(taskUrl);
+    }
 
     const token = await pollForToken(taskId, authToken, opts);
 
