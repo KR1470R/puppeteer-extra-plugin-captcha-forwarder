@@ -451,7 +451,11 @@ export class PuppeteerExtraPluginRecaptcha extends PuppeteerExtraPlugin {
     prop.enterRecaptchaSolutions = async (solutions: types.CaptchaSolution[]) =>
       this.enterRecaptchaSolutions(prop, solutions)
     // Add convenience methods that wraps all others
-    prop.solveRecaptchas = async (customRetriesLimit?: number, captchaElementWaitTimeout?: number) => this.solveRecaptchas(prop, customRetriesLimit, captchaElementWaitTimeout)
+    prop.solveRecaptchas = async (
+      customRetriesLimit?: number, 
+      captchaElementWaitTimeout?: number, 
+      onTaskCreated?: (taskId: string, taskUrl: string) => Promise<any>,
+    ) => this.solveRecaptchas(prop, customRetriesLimit, captchaElementWaitTimeout, onTaskCreated)
   }
 
   async onPageCreated(page: Page) {

@@ -23,11 +23,12 @@ const defaultOpts: CaptchaForwarderProviderOpts = {
 export async function getSolutions(
   captchas: types.CaptchaInfo[] = [],
   authToken: string,
-  options: CaptchaForwarderProviderOpts = {}
+  options: CaptchaForwarderProviderOpts = {},
+  onTaskCreated?: (taskId: string, taskUrl: string) => Promise<any>,
 ): Promise<types.GetSolutionsResult> {
   const opts = { ...defaultOpts, ...options };
   const solutions = await Promise.all(
-    captchas.map(captcha => solveCaptcha(captcha, authToken, opts)),
+    captchas.map(captcha => solveCaptcha(captcha, authToken, opts, onTaskCreated)),
   );
   return {
     solutions,
